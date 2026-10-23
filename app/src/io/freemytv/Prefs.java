@@ -88,7 +88,7 @@ final class Prefs {
 
     static void setTemperature(String v) { put("temperature", v); }
 
-    /** "auto" (dark from sunset to sunrise), "light" or "dark". */
+    /** "auto", "light" or "dark"; the home screen itself is always dark, over its night sky photo. */
     static String theme() {
         String v = sp().getString("theme", "auto");
         return v.equals("light") || v.equals("dark") ? v : "auto";
@@ -107,7 +107,7 @@ final class Prefs {
         version++;
     }
 
-    /** The home screen's soft click when moving and opening. */
+    /** The home screen's system sounds when moving and opening. */
     static boolean sounds() { return sp().getBoolean("sounds", true); }
     static void setSounds(boolean on) { put("sounds", on); }
 

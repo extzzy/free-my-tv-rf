@@ -327,20 +327,6 @@ final class HomeData {
         }
     }
 
-    /**
-     * Night at your location: from sunset to sunrise (like Apple's "Automatic" appearance: the light design darkens).
-     * Uses the last weather fetched (it moves ~1 min a day); without data, 6:00 and 18:00.
-     */
-    boolean isNight(long now) {
-        String theme = Prefs.theme();
-        if (theme.equals("dark")) return true;
-        if (theme.equals("light")) return false;
-        long t = Shaders.timeOfDay(now, 0);
-        long rise = Shaders.timeOfDay(weather.sunrise, 6 * 60 * 60_000L);
-        long set = Shaders.timeOfDay(weather.sunset, 18 * 60 * 60_000L);
-        return t < rise || t >= set;
-    }
-
     // MARK: - Formatting
 
     private static Locale locale() {

@@ -12,12 +12,14 @@ import android.graphics.Shader;
 /**
  * Background (aurora) and glass, using the shaders in Shaders. The aurora is drawn into a ¼-scale layer, scaled up,
  * and only redrawn when it moves (advance, up to ~30 times per second); in the frames between steps the GPU just
- * reuses the layer. The glass reads the frosted aurora computed in Frost or, with a recommendation's image as the
- * background, its blurred version (setFrost).
+ * reuses the layer. The glass reads the frosted aurora computed in Frost or, over a flat background, an image of
+ * that background (setFrost, setGlassImage).
  * If AGSL fails (it shouldn't on Android 13+), it falls back to a gradient and plain translucent glass: the home screen
  * is never left blank.
  */
 final class Scene {
+    /** Sizes of the images the glass reads instead of the aurora: frosted (FW × FH) and liquid (GW × GH). */
+    static final int FW = 192, FH = 108, GW = 480, GH = 270;
     final Shaders.Palette palette = new Shaders.Palette();
     private RuntimeShader aurora, glass, liquid;
     private final Frost frost = new Frost();
@@ -33,7 +35,7 @@ final class Scene {
     private int w = 1, h = 1, lw = 1, lh = 1;
     private float speed = 1, baseDim, dim, time;
     private boolean auroraDirty = true, imageFrost, imageGlass;
-    private Bitmap frostImage, glassA, glassB;
+    private Bitmap frostImage, glassImage;
     private BitmapShader glassShaderA;
     private final boolean withGlass;
 
@@ -72,7 +74,7 @@ final class Scene {
             aurora.setFloatUniform("res", w, h);
             aurora.setFloatUniform("layer", lw, lh);
             setFrostScale();
-            if (imageGlass) liquid.setFloatUniform("imageScale", (float) Backdrop.GW / w, (float) Backdrop.GH / h);
+            if (imageGlass) liquid.setFloatUniform("imageScale", (float) GW / w, (float) GH / h);
         }
         push();
     }
@@ -117,26 +119,17 @@ final class Scene {
         auroraDirty = true;
     }
 
-    /** The liquid glass now shows this photo (Backdrop.GW × GH, slightly blurred). */
+    /** The liquid glass now shows this image (GW × GH) instead of the aurora. */
     void setGlassImage(int[] pixels) {
-        setGlassImages(pixels, null);
-    }
-
-    /** Photo transition: both photos in the glass, blended by setGlassMix (0 = the first one). */
-    void setGlassImages(int[] from, int[] to) {
         imageGlass = true;
         if (liquid == null) return;     // no AGSL (Android 8 to 12): the glass is a flat fill, nothing reads the images
-        glassA = fill(glassA, from);
-        if (to != null) glassB = fill(glassB, to);
-        glassShaderA = linear(glassA);
+        if (glassImage == null) glassImage = Bitmap.createBitmap(GW, GH, Bitmap.Config.ARGB_8888);
+        glassImage.setPixels(pixels, 0, GW, 0, 0, GW, GH);
+        glassShaderA = linear(glassImage);
         liquid.setInputShader("imageA", glassShaderA);
-        liquid.setInputShader("imageB", to != null ? linear(glassB) : glassShaderA);
+        liquid.setInputShader("imageB", glassShaderA);
         liquid.setFloatUniform("mixB", 0);
-        liquid.setFloatUniform("imageScale", (float) Backdrop.GW / w, (float) Backdrop.GH / h);
-    }
-
-    void setGlassMix(float t) {
-        if (liquid != null) liquid.setFloatUniform("mixB", Math.max(0, Math.min(1, t)));
+        liquid.setFloatUniform("imageScale", (float) GW / w, (float) GH / h);
     }
 
     /** The liquid glass goes back to the frosted aurora. */
@@ -144,12 +137,6 @@ final class Scene {
         if (!imageGlass) return;
         imageGlass = false;
         advance(time);
-    }
-
-    private static Bitmap fill(Bitmap b, int[] pixels) {
-        if (b == null) b = Bitmap.createBitmap(Backdrop.GW, Backdrop.GH, Bitmap.Config.ARGB_8888);
-        b.setPixels(pixels, 0, Backdrop.GW, 0, 0, Backdrop.GW, Backdrop.GH);
-        return b;
     }
 
     private static BitmapShader linear(Bitmap b) {
@@ -182,12 +169,12 @@ final class Scene {
         liquidPaint.setAlpha(255);
     }
 
-    /** The glass now reads the blurred background image (Backdrop.FW × FH, ARGB). */
+    /** The glass now reads this image of the background (FW × FH, ARGB). */
     void setFrost(int[] pixels) {
         imageFrost = true;
         if (glass == null) return;      // as above: no shader reads the frosted image
-        if (frostImage == null) frostImage = Bitmap.createBitmap(Backdrop.FW, Backdrop.FH, Bitmap.Config.ARGB_8888);
-        frostImage.setPixels(pixels, 0, Backdrop.FW, 0, 0, Backdrop.FW, Backdrop.FH);
+        if (frostImage == null) frostImage = Bitmap.createBitmap(FW, FH, Bitmap.Config.ARGB_8888);
+        frostImage.setPixels(pixels, 0, FW, 0, 0, FW, FH);
         BitmapShader s = new BitmapShader(frostImage, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
         s.setFilterMode(BitmapShader.FILTER_MODE_LINEAR);
         glass.setInputShader("frost", s);
@@ -215,7 +202,7 @@ final class Scene {
 
     private void setFrostScale() {
         if (glass == null) return;
-        if (imageFrost) glass.setFloatUniform("frostScale", (float) Backdrop.FW / w, (float) Backdrop.FH / h);
+        if (imageFrost) glass.setFloatUniform("frostScale", (float) FW / w, (float) FH / h);
         else glass.setFloatUniform("frostScale", (float) Frost.W / w, (float) Frost.H / h);
     }
 
